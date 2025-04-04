@@ -28,11 +28,11 @@ def load_CIFAR_batch(filename):
         return X, Y
 
 
-def load_CIFAR10(ROOT):
+def load_CIFAR10(ROOT, batch_num):
     """ load all of cifar """
     xs = []
     ys = []
-    for b in range(1, 6):
+    for b in range(1, batch_num + 1):
         f = os.path.join(ROOT, "data_batch_%d" % (b,))
         X, Y = load_CIFAR_batch(f)
         xs.append(X)

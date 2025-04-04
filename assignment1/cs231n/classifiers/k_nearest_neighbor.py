@@ -21,8 +21,27 @@ class KNearestNeighbor(object):
         - y: A numpy array of shape (N,) containing the training labels, where
              y[i] is the label for X[i].
         """
+        print(f"[train] X shape: {X.shape}")
+        assert X.ndim == 2, f"X dim is {X.ndim}, not 2"
+        print(f"[train] y shape: {y.shape}")
+        assert y.ndim == 1, "y dim is not 1"
+        assert X.shape[0] == y.shape[0], "X.shape[0] is not equal to y.shape[0]"
+        
         self.X_train = X
         self.y_train = y
+
+    def compute_l1_distances_two_loops(self, X):
+        mu_pixel = np.mean(self.X_train, axis=0)
+        std_pixel = np.std(self.X_train, axis=0)
+        pre_preprocss_X_train = (self.X_train - mu_pixel) / std_pixel 
+        pre_preprocss_X = (X - mu_pixel) / std_pixel 
+        num_test = pre_preprocss_X.shape[0]
+        num_train = self.X_train.shape[0]
+        dists = np.zeros((num_test, num_train))
+        for i in range(num_test):
+            for j in range(num_train):
+                dists[i][j] = np.linalg.norm(pre_preprocss_X[i] - pre_preprocss_X_train[j], ord=1)
+        return dists
 
     def predict(self, X, k=1, num_loops=0):
         """
@@ -76,9 +95,8 @@ class KNearestNeighbor(object):
                 # not use a loop over dimension, nor use np.linalg.norm().          #
                 #####################################################################
                 # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-                pass
-
+                dists[i][j] = np.linalg.norm(X[i] - self.X_train[j])
+                
                 # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         return dists
 
@@ -100,8 +118,7 @@ class KNearestNeighbor(object):
             # Do not use np.linalg.norm().                                        #
             #######################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-            pass
+            dists[i, :] = np.sqrt(np.sum((X[i, :] - self.X_train) ** 2, axis=1))
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         return dists
@@ -130,6 +147,10 @@ class KNearestNeighbor(object):
         #       and two broadcast sums.                                         #
         #########################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+        test_sq = np.sum(X**2, axis=1)  # 形状 (num_test,)
+        train_sq = np.sum(self.X_train**2, axis=1)  # 形状 (num_train,)
+        dot_product = np.dot(X, self.X_train.T) # 形状 (num_test, num_train)
+        dists = np.sqrt(test_sq[:, np.newaxis] + train_sq[np.newaxis, :] - 2 * dot_product)
 
         pass
 
@@ -163,8 +184,8 @@ class KNearestNeighbor(object):
             # Hint: Look up the function numpy.argsort.                             #
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-            pass
+            
+            closest_y = self.y_train[np.argsort(dists[i,:])][:k]
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
             #########################################################################
@@ -175,8 +196,7 @@ class KNearestNeighbor(object):
             # label.                                                                #
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-            pass
+            y_pred[i] = np.argmax(np.bincount(closest_y))
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
