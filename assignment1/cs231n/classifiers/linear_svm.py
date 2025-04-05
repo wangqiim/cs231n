@@ -36,7 +36,12 @@ def svm_loss_naive(W, X, y, reg):
                 continue
             margin = scores[j] - correct_class_score + 1  # note delta = 1
             if margin > 0:
+                # 需要计算梯度
+                dW[:, j] += X[i]
+                dW[:, y[i]] -= X[i] 
                 loss += margin
+    
+    dW /= num_train
 
     # Right now the loss is a sum over all training examples, but we want it
     # to be an average instead so we divide by num_train.
@@ -54,9 +59,10 @@ def svm_loss_naive(W, X, y, reg):
     # code above to compute the gradient.                                       #
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-    pass
-
+    
+    
+    dW += 2 * reg * W
+    
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
     return loss, dW
@@ -78,7 +84,32 @@ def svm_loss_vectorized(W, X, y, reg):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    num_train = X.shape[0]
+    num_classes = W.shape[1]
+    
+    # Compute scores for all training examples
+    scores = X.dot(W)  # shape (num_train, num_classes)
+    
+    # Get correct class scores
+    correct_class_scores = scores[np.arange(num_train), y].reshape(-1, 1)  # shape (num_train, 1)
+    
+    # Compute margins
+    margins = np.maximum(0, scores - correct_class_scores + 1)  # delta = 1
+    
+    # Set margins for correct class to zero
+    margins[np.arange(num_train), y] = 0
+    
+    # Compute loss
+    loss = np.sum(margins) / num_train
+    
+    # Add regularization
+    loss += reg * np.sum(W * W)
+
+    # Right now the loss is a sum over all training examples, but we want it
+    # to be an average instead so we divide by num_train.
+
+    # Add regularization to the loss.
+
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -92,8 +123,19 @@ def svm_loss_vectorized(W, X, y, reg):
     # loss.                                                                     #
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-    pass
+    # Create a mask for positions where margin > 0
+    mask = (margins > 0).astype(int)
+    
+    # For each example, count how many times it contributed to the gradient
+    counts = np.sum(mask, axis=1)  # shape (num_train,)
+    
+    # For correct classes, subtract the number of times they were counted
+    mask[np.arange(num_train), y] = -counts
+    
+    # Compute gradient
+    dW = X.T.dot(mask) / num_train
+    
+    dW += 2 * reg * W
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
