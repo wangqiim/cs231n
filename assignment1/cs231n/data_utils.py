@@ -45,7 +45,7 @@ def load_CIFAR10(ROOT, batch_num):
 
 
 def get_CIFAR10_data(
-    num_training=49000, num_validation=1000, num_test=1000, subtract_mean=True
+    num_training=49000, num_validation=1000, num_test=1000, subtract_mean=True, batch_num=1
 ):
     """
     Load the CIFAR-10 dataset from disk and perform preprocessing to prepare
@@ -56,7 +56,7 @@ def get_CIFAR10_data(
     cifar10_dir = os.path.join(
         os.path.dirname(__file__), "datasets/cifar-10-batches-py"
     )
-    X_train, y_train, X_test, y_test = load_CIFAR10(cifar10_dir)
+    X_train, y_train, X_test, y_test = load_CIFAR10(cifar10_dir, batch_num)
 
     # Subsample the data
     mask = list(range(num_training, num_training + num_validation))

@@ -27,8 +27,14 @@ def affine_forward(x, w, b):
     # will need to reshape the input into rows.                               #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-    pass
+    num_train = x.shape[0]
+    ndim = int(np.prod(x.shape) // num_train)
+    out_dim = int(np.prod(w.shape) // ndim)
+    # print(f"ndim = {ndim}, out_dim = {out_dim}")
+    
+    x_reshape = np.reshape(x, (num_train, ndim))
+    w_reshape = np.reshape(w, (ndim, out_dim))
+    out = np.dot(x_reshape, w_reshape) + b
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -60,8 +66,20 @@ def affine_backward(dout, cache):
     # TODO: Implement the affine backward pass.                               #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-    pass
+    num_train = dout.shape[0]
+    out_dim = dout.shape[1]
+    x_reshaped = x.reshape(num_train, -1)
+    w_reshaped = w.reshape(-1, out_dim)
+    
+    # dx = dout.dot(w.T)  # Shape (N, D)
+    # dx = dx.reshape(x.shape)  # Reshape back to original input shape
+    
+    dx = dout.dot(w_reshaped.T)
+    dx.resize(x.shape)
+    
+    dw = x_reshaped.T.dot(dout)  # Shape (D, M)
+    
+    db = np.sum(dout, axis=0)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -87,7 +105,7 @@ def relu_forward(x):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    out = x * (x > 0)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -114,7 +132,7 @@ def relu_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    dx = dout * (x > 0)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -773,14 +791,24 @@ def svm_loss(x, y):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    n_in = x.shape[0]
+    
+    correct_class_scores = x[np.arange(n_in), y].reshape(-1, 1)  # shape (num_train, 1)
+    margins = np.maximum(0, x - correct_class_scores + 1)  # delta = 1
+    margins[np.arange(n_in), y] = 0
+    
+    loss = np.sum(margins) / n_in
 
+    mask = (margins > 0).astype(int)
+    counts = np.sum(mask, axis=1)
+    mask[np.arange(n_in), y] = -counts
+    dx = mask / n_in
+    
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
     return loss, dx
-
 
 def softmax_loss(x, y):
     """
@@ -802,9 +830,19 @@ def softmax_loss(x, y):
     # TODO: Copy over your solution from A1.
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    num_train = x.shape[0]
+    assert num_train != 0, 'Problem num_train is zero'
+    scores = x - np.max(x, axis=1, keepdims=True)  # 减去最大值防止指数溢出
+    exp_scores = np.exp(scores)
+    probs = exp_scores / np.sum(exp_scores, axis=1, keepdims=True)  # P = e^s / sum(e^s)
 
-    pass
+    # 裁剪概率，确保 log(p) 不爆炸
+    probs = np.clip(probs, 1e-10, 1.0)  # 下限设为1e-10
+    loss = np.sum(-np.log(probs[np.arange(num_train), y])) / num_train
 
+    dprobs = probs.copy()
+    dprobs[np.arange(num_train), y] -= 1  # 正确类别的梯度 -= 1
+    dx = dprobs / num_train
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
     #                             END OF YOUR CODE                            #
