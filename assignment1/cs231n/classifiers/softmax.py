@@ -33,11 +33,22 @@ def softmax_loss_naive(W, X, y, reg):
     # regularization!                                                           #
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-    pass
-
+    num_train = X.shape[0]
+    scores = np.dot(X, W)
+    scores -= np.max(np.dot(X, W), axis=1, keepdims=True)  # 减去最大值防止指数溢出
+    exp_scores = np.exp(scores)
+    probs = exp_scores / np.sum(exp_scores, axis=1, keepdims=True)  # P = e^s / sum(e^s)
+    
+    loss = np.sum(-np.log(probs[np.arange(num_train), y])) / num_train
+    loss += reg * np.sum(dW ** 2)
+    
+    dprobs = probs.copy()
+    dprobs[np.arange(num_train), y] -= 1  # 正确类别的梯度 -= 1
+    # print(X.T.shape)
+    # print(dprobs.shape)
+    dW = np.dot(X.T, dprobs) / num_train + reg * W
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
+    
     return loss, dW
 
 
@@ -48,8 +59,6 @@ def softmax_loss_vectorized(W, X, y, reg):
     Inputs and outputs are the same as softmax_loss_naive.
     """
     # Initialize the loss and gradient to zero.
-    loss = 0.0
-    dW = np.zeros_like(W)
 
     #############################################################################
     # TODO: Compute the softmax loss and its gradient using no explicit loops.  #
@@ -59,8 +68,6 @@ def softmax_loss_vectorized(W, X, y, reg):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-    return loss, dW
+    return softmax_loss_naive(W, X, y, reg)
