@@ -3,7 +3,8 @@ import numpy as np
 
 
 def affine_forward(x, w, b):
-    """Computes the forward pass for an affine (fully connected) layer.
+    """
+    Computes the forward pass for an affine (fully-connected) layer.
 
     The input x has shape (N, d_1, ..., d_k) and contains a minibatch of N
     examples, where each example x[i] has shape (d_1, ..., d_k). We will
@@ -21,11 +22,18 @@ def affine_forward(x, w, b):
     """
     out = None
     ###########################################################################
-    # TODO: Copy over your solution from Assignment 1.                        #
+    # TODO: Implement the affine forward pass. Store the result in out. You   #
+    # will need to reshape the input into rows.                               #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-    pass
+    num_train = x.shape[0]
+    ndim = int(np.prod(x.shape) // num_train)
+    out_dim = int(np.prod(w.shape) // ndim)
+    # print(f"ndim = {ndim}, out_dim = {out_dim}")
+    
+    x_reshape = np.reshape(x, (num_train, ndim))
+    w_reshape = np.reshape(w, (ndim, out_dim))
+    out = np.dot(x_reshape, w_reshape) + b
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -36,7 +44,8 @@ def affine_forward(x, w, b):
 
 
 def affine_backward(dout, cache):
-    """Computes the backward pass for an affine (fully connected) layer.
+    """
+    Computes the backward pass for an affine layer.
 
     Inputs:
     - dout: Upstream derivative, of shape (N, M)
@@ -53,11 +62,23 @@ def affine_backward(dout, cache):
     x, w, b = cache
     dx, dw, db = None, None, None
     ###########################################################################
-    # TODO: Copy over your solution from Assignment 1.                        #
+    # TODO: Implement the affine backward pass.                               #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    num_train = dout.shape[0]
+    out_dim = dout.shape[1]
+    x_reshaped = x.reshape(num_train, -1)
+    w_reshaped = w.reshape(-1, out_dim)
+    
+    # dx = dout.dot(w.T)  # Shape (N, D)
+    # dx = dx.reshape(x.shape)  # Reshape back to original input shape
+    
+    dx = dout.dot(w_reshaped.T)
+    dx.resize(x.shape)
+    
+    dw = x_reshaped.T.dot(dout)  # Shape (D, M)
 
-    pass
+    db = np.sum(dout, axis=0)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -67,7 +88,8 @@ def affine_backward(dout, cache):
 
 
 def relu_forward(x):
-    """Computes the forward pass for a layer of rectified linear units (ReLUs).
+    """
+    Computes the forward pass for a layer of rectified linear units (ReLUs).
 
     Input:
     - x: Inputs, of any shape
@@ -78,11 +100,11 @@ def relu_forward(x):
     """
     out = None
     ###########################################################################
-    # TODO: Copy over your solution from Assignment 1.                        #
+    # TODO: Implement the ReLU forward pass.                                  #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    out = x * (x > 0)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -93,7 +115,8 @@ def relu_forward(x):
 
 
 def relu_backward(dout, cache):
-    """Computes the backward pass for a layer of rectified linear units (ReLUs).
+    """
+    Computes the backward pass for a layer of rectified linear units (ReLUs).
 
     Input:
     - dout: Upstream derivatives, of any shape
@@ -104,11 +127,11 @@ def relu_backward(dout, cache):
     """
     dx, x = None, cache
     ###########################################################################
-    # TODO: Copy over your solution from Assignment 1.                        #
+    # TODO: Implement the ReLU backward pass.                                 #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    dx = dout * (x > 0)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -118,7 +141,8 @@ def relu_backward(dout, cache):
 
 
 def softmax_loss(x, y):
-    """Computes the loss and gradient for softmax classification.
+    """
+    Computes the loss and gradient for softmax classification.
 
     Inputs:
     - x: Input data, of shape (N, C) where x[i, j] is the score for the jth
@@ -133,18 +157,27 @@ def softmax_loss(x, y):
     loss, dx = None, None
 
     ###########################################################################
-    # TODO: Copy over your solution from Assignment 1.                        #
+    # TODO: Copy over your solution from A1.
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    num_train = x.shape[0]
+    assert num_train != 0, 'Problem num_train is zero'
+    scores = x - np.max(x, axis=1, keepdims=True)  # 减去最大值防止指数溢出
+    exp_scores = np.exp(scores)
+    probs = exp_scores / np.sum(exp_scores, axis=1, keepdims=True)  # P = e^s / sum(e^s)
 
-    pass
+    # 裁剪概率，确保 log(p) 不爆炸
+    # probs = np.clip(probs, 1e-10, 1.0)  # 下限设为1e-10
+    loss = np.sum(-np.log(probs[np.arange(num_train), y])) / num_train
 
+    dprobs = probs.copy()
+    dprobs[np.arange(num_train), y] -= 1  # 正确类别的梯度 -= 1
+    dx = dprobs / num_train
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
     return loss, dx
-
 
 def batchnorm_forward(x, gamma, beta, bn_param):
     """Forward pass for batch normalization.
@@ -216,8 +249,24 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
-
+        # Step 1: Compute mean
+        sample_mean = np.mean(x, axis=0)
+        
+        # Step 2: Compute variance
+        sample_var = np.var(x, axis=0)
+        
+        # Step 3: Normalize the data
+        x_normalized = (x - sample_mean) / np.sqrt(sample_var + eps)
+        
+        # Step 4: Scale and shift
+        out = gamma * x_normalized + beta
+        
+        # Update running mean and variance
+        running_mean = momentum * running_mean + (1 - momentum) * sample_mean
+        running_var = momentum * running_var + (1 - momentum) * sample_var
+        
+        # Store values needed for backward pass
+        cache = (x, x_normalized, sample_mean, sample_var, gamma, beta, eps)
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
         #                           END OF YOUR CODE                          #
@@ -231,7 +280,12 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        # Normalize using running statistics
+        x_normalized = (x - running_mean) / np.sqrt(running_var + eps)
+        out = gamma * x_normalized + beta
+        
+        # No need to store cache for test mode
+        cache = None
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -245,7 +299,6 @@ def batchnorm_forward(x, gamma, beta, bn_param):
     bn_param["running_var"] = running_var
 
     return out, cache
-
 
 def batchnorm_backward(dout, cache):
     """Backward pass for batch normalization.
@@ -271,9 +324,22 @@ def batchnorm_backward(dout, cache):
     # might prove to be helpful.                                              #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-    pass
-
+    (x, x_normalized, sample_mean, sample_var, gamma, beta, eps) = cache
+    num_train = x.shape[0]
+    
+    dbeta = np.sum(dout, axis=0)
+    dgamma = np.sum(dout * x_normalized, axis=0)
+    
+    # 0. 计算中间梯度
+    dx_normalized = dout * gamma
+    std_inv = 1.0 / np.sqrt(sample_var + eps)
+    x_minus_mean = x - sample_mean
+    # 1. 计算方差梯度（隐含耦合项）
+    dvar = np.sum(dx_normalized * x_minus_mean * (-0.5) * std_inv**3, axis=0)
+    # 2. 计算均值梯度（隐含耦合项）
+    dmean = np.sum(dx_normalized * (-std_inv), axis=0) + dvar * np.mean(-2 * x_minus_mean, axis=0)
+    # 3. 合并梯度
+    dx = dx_normalized * std_inv + dvar * (2/num_train) * x_minus_mean + dmean / num_train
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
     #                             END OF YOUR CODE                            #
@@ -431,7 +497,8 @@ def dropout_forward(x, dropout_param):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        mask = (np.random.rand(*x.shape) < p) / p
+        out = x * mask  # Apply mask to input data
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -443,7 +510,7 @@ def dropout_forward(x, dropout_param):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        out = x
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -473,7 +540,7 @@ def dropout_backward(dout, cache):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        dx = dout * mask
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
