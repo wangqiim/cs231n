@@ -78,7 +78,7 @@ def affine_backward(dout, cache):
     dx.resize(x.shape)
     
     dw = x_reshaped.T.dot(dout)  # Shape (D, M)
-    
+
     db = np.sum(dout, axis=0)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
@@ -837,7 +837,7 @@ def softmax_loss(x, y):
     probs = exp_scores / np.sum(exp_scores, axis=1, keepdims=True)  # P = e^s / sum(e^s)
 
     # 裁剪概率，确保 log(p) 不爆炸
-    probs = np.clip(probs, 1e-10, 1.0)  # 下限设为1e-10
+    # probs = np.clip(probs, 1e-10, 1.0)  # 下限设为1e-10
     loss = np.sum(-np.log(probs[np.arange(num_train), y])) / num_train
 
     dprobs = probs.copy()
