@@ -371,8 +371,14 @@ def batchnorm_backward_alt(dout, cache):
     # single statement; our implementation fits on a single 80-character line.#
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-    pass
+    N = dout.shape[0]
+    (x, x_normalized, sample_mean, sample_var, gamma, beta, eps) = cache
+    
+    dx = (1. / N) * gamma * (sample_var + eps)**(-1./2) * (
+        N * dout - np.sum(dout, axis=0) - x_normalized * np.sum(dout * x_normalized, axis=0))
+    
+    dbeta = np.sum(dout, axis=0)
+    dgamma = np.sum(dout * x_normalized, axis=0)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -416,9 +422,15 @@ def layernorm_forward(x, gamma, beta, ln_param):
     # the batch norm code and leave it almost unchanged?                      #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    N = x.shape[0]
+    D = x.shape[1]
 
-    pass
+    sample_mean = np.mean(x, axis=1)
+    sample_var = np.var(x, axis=1)
+    x_normalized = (x - sample_mean.reshape(N, 1)) / np.sqrt(sample_var.reshape(N, 1) + eps)
+    out = gamma * x_normalized + beta
 
+    cache = (x, x_normalized, sample_mean, sample_var, gamma, beta, eps)
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
     #                             END OF YOUR CODE                            #
@@ -451,8 +463,25 @@ def layernorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N, D = dout.shape
 
+    (x, x_normalized, sample_mean, sample_var, gamma, beta, eps) = cache
+
+    # 0. 计算中间梯度
+    dx_normalized = dout * gamma
+    std_inv = (1.0 / np.sqrt(sample_var + eps)).reshape(N, 1).repeat(D, axis=1)
+    x_minus_mean = x - sample_mean.reshape(N, 1).repeat(D, axis=1)
+    # 1. 计算方差梯度（隐含耦合项）
+    dvar = np.sum(dx_normalized * x_minus_mean * (-0.5) * std_inv**3, axis=1).reshape(N, 1).repeat(D, axis=1)
+    # 2. 计算均值梯度（隐含耦合项）
+    dmean = np.sum(dx_normalized * (-std_inv), axis=1).reshape(N, 1).repeat(D, axis=1) + dvar * np.mean(-2 * x_minus_mean, axis=1).reshape(N, 1).repeat(D, axis=1)
+    # 3. 合并梯度
+    dx = dx_normalized * std_inv
+    dx += dvar * (2/D) * x_minus_mean
+    dx += dmean / D
+
+    dbeta = np.sum(dout, axis=0)
+    dgamma = np.sum(dout * x_normalized, axis=0)
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
     #                             END OF YOUR CODE                            #
