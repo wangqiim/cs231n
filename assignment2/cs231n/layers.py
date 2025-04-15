@@ -838,7 +838,16 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N, C, H, W = x.shape
+    
+    # Reshape x to (N*H*W, C) for standard batch normalization
+    x_reshaped = x.transpose(0, 2, 3, 1).reshape(-1, C)
+    # Call standard batch normalization
+    
+    out_reshaped, cache = batchnorm_forward(x_reshaped, gamma, beta, bn_param)
+    
+    # Reshape back to (N, C, H, W)
+    out = out_reshaped.reshape(N, H, W, C).transpose(0, 3, 1, 2)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -869,15 +878,15 @@ def spatial_batchnorm_backward(dout, cache):
     # vanilla version of batch normalization you implemented above.           #
     # Your implementation should be very short; ours is less than five lines. #
     ###########################################################################
-    # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-    pass
+    N, C, H, W = dout.shape
+    dout = dout.transpose(0, 2, 3, 1).reshape(-1, C)
+    dx, dgamma, dbeta = batchnorm_backward(dout, cache)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
-
+    dx = dx.reshape(N, H, W, C).transpose(0, 3, 1, 2)
     return dx, dgamma, dbeta
 
 
@@ -912,7 +921,34 @@ def spatial_groupnorm_forward(x, gamma, beta, G, gn_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N, C, H, W = x.shape
+    # Step 1: Reshape x to (N, G, C//G, H, W)
+    x_reshaped = x.reshape(N, G, C // G, H, W)
+    
+    # Step 2: Compute mean and variance for each group
+    mean = x_reshaped.mean(axis=(2, 3, 4), keepdims=True)  # Shape (N, G, 1, 1, 1)
+    var = x_reshaped.var(axis=(2, 3, 4), keepdims=True)    # Shape (N, G, 1, 1, 1)
+    
+    # Step 3: Normalize each group
+    x_normalized = (x_reshaped - mean) / np.sqrt(var + eps)
+    
+    # Reshape back to (N, C, H, W) for scaling/shifting
+    x_normalized = x_normalized.reshape(N, C, H, W)
+    
+    # Step 4: Apply gamma and beta (broadcast from (1,C,1,1) to (N,C,H,W))
+    out = gamma * x_normalized + beta
+    
+    # Cache for backward pass
+    cache = {
+        'x_normalized': x_normalized,  # After normalization, before gamma/beta
+        'mean': mean,                  # Group means
+        'var': var,                    # Group variances
+        'gamma': gamma,                # Scale parameter
+        'beta': beta,                  # Shift parameter
+        'eps': eps,                    # Numerical stability term
+        'G': G,                        # Number of groups
+        'x_shape': (N, C, H, W)        # Original input shape
+    }
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -941,7 +977,55 @@ def spatial_groupnorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+def spatial_groupnorm_backward(dout, cache):
+    """
+    Backward pass for spatial group normalization.
+    
+    Inputs:
+    - dout: Upstream derivatives of shape (N, C, H, W)
+    - cache: Values from the forward pass (x_normalized, mean, var, gamma, beta, G, etc.)
+    
+    Returns:
+    - dx: Gradient with respect to inputs, of shape (N, C, H, W)
+    - dgamma: Gradient with respect to scale parameter gamma, of shape (1, C, 1, 1)
+    - dbeta: Gradient with respect to shift parameter beta, of shape (1, C, 1, 1)
+    """
+    # 从缓存中提取前向传播的中间变量
+    x_normalized = cache['x_normalized']  # 归一化后的数据 (N, C, H, W)
+    mean = cache['mean']                  # 各组均值 (N, G, 1, 1, 1)
+    var = cache['var']                    # 各组方差 (N, G, 1, 1, 1)
+    gamma = cache['gamma']                # 缩放参数 (1, C, 1, 1)
+    beta = cache['beta']                  # 偏移参数 (1, C, 1, 1)
+    G = cache['G']                        # 分组数
+    eps = cache['eps']                    # 数值稳定项
+    N, C, H, W = cache['x_shape']         # 输入形状
+    
+    # 初始化梯度
+    dx = np.zeros((N, C, H, W))
+    dgamma = np.zeros_like(gamma)          # (1, C, 1, 1)
+    dbeta = np.zeros_like(beta)            # (1, C, 1, 1)
+    
+    # Step 1: 计算 dbeta 和 dgamma（直接求和）
+    dbeta = np.sum(dout, axis=(0, 2, 3), keepdims=True)  # (1, C, 1, 1)
+    dgamma = np.sum(dout * x_normalized, axis=(0, 2, 3), keepdims=True)  # (1, C, 1, 1)
+    
+    # Step 2: 计算 dx_normalized（上游梯度乘以 gamma）
+    dx_normalized = dout * gamma          # (N, C, H, W)
+    
+    # Step 3: 将 dx_normalized 分组为 (N, G, C//G, H, W)
+    dx_normalized_group = dx_normalized.reshape(N, G, C//G, H, W)
+    x_group = x_normalized.reshape(N, G, C//G, H, W)
+    
+    # Step 4: 计算每组的标准差倒数 (std_inv = 1/sqrt(var + eps))
+    std_inv = 1.0 / np.sqrt(var + eps)    # (N, G, 1, 1, 1)
+    
+    # Step 5: 计算 dx_group（链式法则）
+    # dx_group = (dx_normalized_group - mean(dx_normalized_group) - x_group * mean(dx_normalized_group * x_group)) * std_inv
+    dx_group = std_inv * (dx_normalized_group - np.mean(dx_normalized_group, axis=(2, 3, 4), keepdims=True) 
+                          - x_group * np.mean(dx_normalized_group * x_group, axis=(2, 3, 4), keepdims=True))
+    
+    # Step 6: 恢复原始形状 (N, C, H, W)
+    dx = dx_group.reshape(N, C, H, W)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################

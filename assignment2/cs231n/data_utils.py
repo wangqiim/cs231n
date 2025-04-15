@@ -45,7 +45,7 @@ def load_CIFAR10(ROOT, batch_num):
 
 
 def get_CIFAR10_data(
-    num_training=9000, num_validation=1000, num_test=1000, subtract_mean=True, batch_num=1
+    num_training=49000, num_validation=1000, num_test=1000, subtract_mean=True, batch_num=5
 ):
     """
     Load the CIFAR-10 dataset from disk and perform preprocessing to prepare
