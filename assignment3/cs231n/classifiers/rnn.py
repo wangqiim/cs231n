@@ -45,6 +45,7 @@ class CaptioningRNN:
         self.word_to_idx = word_to_idx
         self.idx_to_word = {i: w for w, i in word_to_idx.items()}
         self.params = {}
+        self.input_dim = input_dim
 
         vocab_size = len(word_to_idx)
 
@@ -148,8 +149,19 @@ class CaptioningRNN:
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
-
+        N, D = features.shape
+        assert D == self.input_dim, "features should be of shape (N, input_dim)"
+        h0, image_cache = affine_forward(features, W_proj, b_proj)  # (N, H)
+        captions_in_embed, embed_cache = word_embedding_forward(captions_in, W_embed)  # (N, T, W)
+        if self.cell_type == "rnn":
+            h, rnn_cache = rnn_forward(captions_in_embed, h0, Wx, Wh, b)
+        scores, temporal_affine_cache = temporal_affine_forward(h, W_vocab, b_vocab)  # (N, T, V)
+        loss, dscores = temporal_softmax_loss(scores, captions_out, mask)  # (N, T, V)
+        # calculate grads
+        dh, grads["W_vocab"], grads["b_vocab"] = temporal_affine_backward(dscores, temporal_affine_cache)
+        dx, dh0, grads["Wx"], grads["Wh"], grads["b"] = rnn_backward(dh, rnn_cache)
+        grads["W_embed"] = word_embedding_backward(dx, embed_cache)
+        _, grads["W_proj"] , grads["b_proj"] = affine_backward(dh0, image_cache)
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
         #                             END OF YOUR CODE                             #
@@ -215,8 +227,31 @@ class CaptioningRNN:
         # you are using an LSTM, initialize the first cell state to zeros.        #
         ###########################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-        pass
+        W = W_vocab.shape[0]
+        V = W_vocab.shape[1]
+        # h0, image_cache = affine_forward(features, W_proj, b_proj)  # (N, H)
+        # captions_in = captions[:, :-1]
+        # captions_in_embed, _ = word_embedding_forward(captions_in, W_embed)  # (N, T, W)
+        # next_h, _ = rnn_step_forward(captions_in_embed[:, 0, :], h0, Wx, Wh, b) # (N, W)
+        # scores, _ = temporal_affine_forward(next_h.reshape(N, 1, W), W_vocab, b_vocab)  # (N, 1, V)
+        # captions_next = (scores.reshape(N, V)).argmax(axis=1)
+        # input("test...")
+        
+        
+        captions_in_embed, _ = word_embedding_forward(captions[:, :-1], W_embed)  # (N, T, W)
+        captions_in_embed_next = captions_in_embed[:, 0, :] # (N, W)
+        prev_h, _ = affine_forward(features, W_proj, b_proj)  # (N, H)
+        captions[:, 0] = self._start
+        for i in range(max_length - 1):
+          # print(captions_in_embed_next.shape)
+          # print(Wx.shape)
+          # print(prev_h.shape)
+          # print(Wh.shape)
+          prev_h, _ = rnn_step_forward(captions_in_embed_next, prev_h, Wx, Wh, b) # (N, W)
+          scores, _ = temporal_affine_forward(prev_h.reshape(N, 1, W), W_vocab, b_vocab)  # (N, 1, V)
+          captions_in_embed_next_index = (scores.reshape(N, V)).argmax(axis=1) # N
+          captions_in_embed_next, _ = word_embedding_forward(captions_in_embed_next_index, W_embed)
+          captions[:, i + 1] = captions_in_embed_next_index
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################

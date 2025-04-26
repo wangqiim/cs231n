@@ -73,7 +73,15 @@ def rnn_step_forward(x, prev_h, Wx, Wh, b):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    cache = {}
+    next_h = np.tanh(np.dot(prev_h, Wh) + np.dot(x, Wx) + b)
+    cache['x'] = x
+    cache['prev_h'] = prev_h
+    cache['Wx'] = Wx
+    cache['Wh'] = Wh
+    cache['b'] = b
+    cache['next_h'] = next_h
+    # print(f"next_h.shape: {next_h.shape}, next_h: {next_h}")
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
@@ -104,8 +112,23 @@ def rnn_step_backward(dnext_h, cache):
     # of the output value from tanh.                                             #
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    next_h = cache["next_h"]
+    prev_h = cache["prev_h"]
+    x = cache["x"]
+    Wx = cache["Wx"]
+    Wh = cache["Wh"]
+    b = cache["b"]
 
-    pass
+    N, H = dnext_h.shape
+    D = x.shape[1]
+
+    dz = (1 - np.square(next_h)) * dnext_h  # 形状 (N, H)
+
+    dx = dz.dot(Wx.T)  # 形状 (N, D)
+    dprev_h = dz.dot(Wh.T)  # 形状 (N, H)
+    dWx = x.T.dot(dz)  # 形状 (D, H)
+    dWh = prev_h.T.dot(dz)  # 形状 (H, H)
+    db = np.sum(dz, axis=0)  # 形状 (H,)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
@@ -140,7 +163,17 @@ def rnn_forward(x, h0, Wx, Wh, b):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N, T, D = x.shape
+    H = h0.shape[1]
+    h = np.zeros((N, T, H))
+    prev_h = h0
+    cache = []
+    for t in range(T):
+        x_t = x[:, t, :]
+        next_h, cache_t = rnn_step_forward(x_t, prev_h, Wx, Wh, b)
+        h[:, t, :] = next_h
+        prev_h = next_h
+        cache.append(cache_t)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
@@ -174,8 +207,28 @@ def rnn_backward(dh, cache):
     # defined above. You can use a for loop to help compute the backward pass.   #
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    N, T, H = dh.shape
+    D = cache[0]['x'].shape[1]
+    dx = np.zeros((N, T, D))
+    dh0 = np.zeros((N, H))
+    dWx = np.zeros((D, H))
+    dWh = np.zeros((H, H))
+    db = np.zeros((H,))
 
-    pass
+    dh_tmp = np.zeros((N, H))
+    for t in range(len(cache) - 1, -1, -1):
+        cache_t = cache[t]
+        if t == len(cache) - 1:
+            dh_tmp = dh[:, t, :]
+        else:
+            dh_tmp = dh[:, t, :] + dh_tmp
+        dx_t, dh_tmp, dWx_t, dWh_t, db_t = rnn_step_backward(dh_tmp, cache_t)
+        dx[:, t, :] = dx_t
+        dWx += dWx_t
+        dWh += dWh_t
+        db += db_t
+        if t == 0:
+            dh0 = dh_tmp
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
@@ -208,7 +261,10 @@ def word_embedding_forward(x, W):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    # generate out
+    out = W[x]  # 形状 (N, T, D)
+    # generate cache
+    cache = (x, W)  # 形状 (N, T), (V, D)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
@@ -242,7 +298,14 @@ def word_embedding_backward(dout, cache):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    (x, W) = cache
+    N, T, D = dout.shape
+    V, D = W.shape
+    dW = np.zeros((V, D))  # 形状 (V, D)
+    for i in range(N):
+        for j in range(T):
+            word_idx = x[i, j]
+            dW[word_idx] += dout[i, j, :]  # 形状 (D,)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
