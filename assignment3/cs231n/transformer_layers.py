@@ -38,7 +38,10 @@ class PositionalEncoding(nn.Module):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        position = torch.arange(0, max_len, dtype=torch.float).reshape(max_len, 1) # (max_len, 1)
+        div_term = torch.exp(torch.arange(0, embed_dim, 2).float() * -(math.log(10000.0) / embed_dim)).reshape(1, -1) # (1, embed_dim/2)
+        pe[0, :, 0::2] = torch.sin(position * div_term) # (1, max_len, embed_dim/2)
+        pe[0, :, 1::2] = torch.cos(position * div_term) # (1, max_len, embed_dim/2)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -70,7 +73,8 @@ class PositionalEncoding(nn.Module):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        x = x + self.pe[:, :S, :] # (1, S, D)
+        output = self.dropout(x) # (N, S, D)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -165,12 +169,23 @@ class MultiHeadAttention(nn.Module):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        # 1) Split the input into multiple heads
+        split_Q = self.query(query).view(N, S, self.n_head, self.head_dim).transpose(1, 2) # N, H, S, E/H
+        split_K = self.key(key).view(N, T, self.n_head, self.head_dim).transpose(1, 2) # N, H, T, E/H
+        split_V = self.value(value).view(N, T, self.n_head, self.head_dim).transpose(1, 2) # N, H, T, E/H
 
+        attn_scores = torch.matmul(split_Q, split_K.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.head_dim, dtype=torch.float32)) # N, H, S, T
+        if attn_mask is not None:
+            # 2) Apply the attention mask
+            attn_scores = attn_scores.masked_fill(attn_mask == 0, float('-inf'))
+        attn_weights = self.attn_drop(F.softmax(attn_scores, dim=-1)) # N, H, S, T
+        split_QKV = torch.matmul(attn_weights, split_V) # N, H, S, E/H
+        output = split_QKV.transpose(1, 2).contiguous()  # (N, S, H, E/H)
+        output = output.view(N, S, E)  # (batch_size, seq_len, embed_dim)
+        
+        
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
-        return output
-
-
+        return self.proj(output)
