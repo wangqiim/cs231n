@@ -7,7 +7,7 @@ from torchvision.models.resnet import resnet50
 class Model(nn.Module):
     def __init__(self, feature_dim=128):
         super(Model, self).__init__()
-
+        
         self.f = []
         for name, module in resnet50().named_children():
             if name == 'conv1':
@@ -21,7 +21,10 @@ class Model(nn.Module):
                                nn.ReLU(inplace=True), nn.Linear(512, feature_dim, bias=True))
 
     def forward(self, x):
+        # print("x: ", x.shape)
         x = self.f(x)
         feature = torch.flatten(x, start_dim=1)
+        # print("feature: ", feature.shape)
         out = self.g(feature)
+        # print("out: ", out.shape)
         return F.normalize(feature, dim=-1), F.normalize(out, dim=-1)
